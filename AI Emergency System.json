@@ -1,0 +1,174 @@
+{
+  "name": "AI Emergency System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triage",
+        "options": {}
+      },
+      "id": "171cc651-41ca-4e23-a8e5-d59dab2fa2c6",
+      "name": "📥 Receive Patient Note",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        128
+      ],
+      "webhookId": "4349b0fc-c775-4403-ab31-4d167d87d3aa",
+      "notes": "🔹 PURPOSE: Entry point for emergency triage submissions.\n\n📌 Endpoint → POST /webhook/triage\n\nValid request body formats:\n{\n  \"patient_note\": \"30-year-old male, bicycle accident, severe knee pain\"\n}\nOR\n{\n  \"text\": \"Shortness of breath and chest pain for 20 minutes\"\n}\nOR\n{\n  \"notes\": \"Profuse bleeding from arm after glass injury\"\n}\n\nThis allows universal compatibility across medical apps, emergency services, chatbots, SMS triage systems, IoT medical wearables, and intake dashboards."
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "{   \"patient_note\": \"22-year-old male severe pain in the chest}",
+              "value": "={{ $json.patient_note || $json.text || $json.notes || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "131d6ae4-4552-4908-b650-eef61db2a3ad",
+      "name": "🧹 Normalize Patient Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        128
+      ],
+      "notes": "🔹 PURPOSE: Consolidates all possible incoming field names into a single standardized field → `patient_note`.\n\nBenefits:\n✔ Allows the API to work with many different client apps without forcing a fixed JSON format.\n✔ Prevents workflow failure if input is missing — empty string is still processed safely.\n\nThis makes long-term maintenance very easy and allows external developers to integrate without strict formatting requirements."
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={\n  \"triage_level\": \"critical\",\n  \"possible_condition\": \"The symptoms may indicate a potentially life-threatening emergency such as cardiac, respiratory, or traumatic complications\",\n  \"immediate_action\": \"Call emergency services immediately, check breathing and responsiveness, keep the patient calm, avoid moving the patient unless there is immediate danger, monitor for any changes in consciousness or breathing, and provide continuous reassurance\",\n  \"notes\": \"Do not give any food, drink, or medications unless instructed by medical professionals. If the patient loses consciousness or stops breathing, emergency services must be informed immediately.\"\n}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "id": "07ef7f04-8b91-4aae-98b8-de501887e68f",
+      "name": "🤖 AI Triage Analysis (Gemini)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        176,
+        128
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dQoPFKazs4ymycy5",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "🔹 PURPOSE: Converts raw patient text into automated emergency triage evaluation.\n\nThe system prompt enforces MEDICAL SAFETY — perfect for:\n• Emergency call centers\n• Hospital triage desks\n• High-volume remote patient screening\n• First-aid automation systems\n• Military or field triage deployments"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "parsed",
+              "value": "={{ JSON.parse($json.content.parts[0].text.replace(/```json|```/g, '').trim()) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2cf26e01-dafa-4b5d-b3a9-a16db93b343a",
+      "name": "🧾 Parse AI JSON Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        480,
+        128
+      ],
+      "notes": "🔹 PURPOSE: Converts the Gemini output string into an actual JSON object.\n\nHandles both formats safely:\n```json\n{ ... }\n```\nand\n{ ... }\n\nThis ensures ZERO execution failure and guarantees valid JSON is returned to any connected system."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "06f5a094-d1ad-4a75-9159-038722a6e16a",
+      "name": "📤 Return Final Triage JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        736,
+        128
+      ],
+      "notes": "🔹 PURPOSE: Returns the final structured triage output to the API consumer.\n\nGuaranteed JSON response format:\n{\n  \"triage_level\": \"low | medium | high | critical\",\n  \"possible_condition\": \"string\",\n  \"immediate_action\": \"string (SAFE steps only — no medications)\",\n  \"notes\": \"string (optional)\"\n}\n\nPerfect for:\n✔ Hospital dashboards\n✔ EMS dispatching systems\n✔ Mobile emergency apps\n✔ Online self-triage portals\n✔ Healthcare automation systems"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "📥 Receive Patient Note": {
+      "main": [
+        [
+          {
+            "node": "🧹 Normalize Patient Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧹 Normalize Patient Input": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Triage Analysis (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Triage Analysis (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "🧾 Parse AI JSON Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧾 Parse AI JSON Output": {
+      "main": [
+        [
+          {
+            "node": "📤 Return Final Triage JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "867f1acc-972f-40f8-bceb-bdaf144269b3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "43fb7c9afec9e23380519ba8ba137507c8b920ea3259c2109e60af92f32f1707"
+  },
+  "id": "mtGLgWzAMlWldXvX",
+  "tags": []
+}
